@@ -1,76 +1,68 @@
 package serveur;
 
-import metier.Abonne;
-import metier.DocumentAbstrait;
-import metier.Mediatheque;
 import exceptions.EmpruntException;
+import metier.Abonne;
+import metier.Document;
+import metier.Mediatheque;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 
-/**
- * Service d'emprunt (port 2001).
- * Protocole :
- *   client -> "numAbonne idDoc"
- *   serveur -> "OK" ou "ERREUR message"
- */
 public class ServiceEmprunt implements Runnable {
 
-    private final Socket socket;
-    private final Mediatheque mediatheque;
+    private Socket socket;
+    private Mediatheque mediatheque;
 
     public ServiceEmprunt(Socket socket, Mediatheque mediatheque) {
         this.socket = socket;
         this.mediatheque = mediatheque;
     }
 
-    @Override
     public void run() {
-        try (
-            BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter   out  = new PrintWriter(socket.getOutputStream(), true)
-        ) {
+        try {
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
             String ligne = in.readLine();
-            if (ligne == null) return;
+            String[] tab = ligne.split(" ");
 
-            String[] parts = ligne.trim().split(" ");
-            if (parts.length < 2) {
-                out.println("ERREUR Syntaxe : numAbonne idDoc");
+            if (tab.length < 2) {
+                out.println("ERREUR format incorrect, envoyer : numAbonne idDoc");
+                socket.close();
                 return;
             }
 
-            int numAbonne;
-            try {
-                numAbonne = Integer.parseInt(parts[0]);
-            } catch (NumberFormatException e) {
-                out.println("ERREUR Numero d'abonne invalide.");
-                return;
-            }
-            String idDoc = parts[1];
+            int numAbonne = Integer.parseInt(tab[0]);
+            String idDoc = tab[1];
 
             Abonne ab = mediatheque.getAbonne(numAbonne);
             if (ab == null) {
-                out.println("ERREUR Abonne #" + numAbonne + " inconnu.");
+                out.println("ERREUR abonne " + numAbonne + " introuvable");
+                socket.close();
                 return;
             }
 
-            DocumentAbstrait doc = mediatheque.getDocument(idDoc);
+            Document doc = mediatheque.getDocument(idDoc);
             if (doc == null) {
-                out.println("ERREUR Document \"" + idDoc + "\" inconnu.");
+                out.println("ERREUR document " + idDoc + " introuvable");
+                socket.close();
                 return;
             }
 
             try {
                 doc.emprunt(ab);
-                out.println("OK Bon emprunt de \"" + doc.getTitre() + "\" !");
+                out.println("OK emprunt effectue pour " + doc.idDoc());
             } catch (EmpruntException e) {
                 out.println("ERREUR " + e.getMessage());
             }
 
+            socket.close();
+
         } catch (IOException e) {
-            System.err.println("[ServiceEmprunt] Erreur IO : " + e.getMessage());
-        } finally {
-            try { socket.close(); } catch (IOException ignored) {}
+            e.printStackTrace();
         }
     }
 }

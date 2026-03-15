@@ -1,100 +1,87 @@
 package serveur;
 
-import metier.Abonne;
-import metier.DocumentAbstrait;
-import metier.EtatDocument;
-import metier.Mediatheque;
 import exceptions.ReservationException;
+import metier.Abonne;
+import metier.DVD;
+import metier.Document;
+import metier.Livre;
+import metier.Mediatheque;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 
-/**
- * Service de réservation (port 2000).
- * Protocole :
- *   client -> "numAbonne idDoc"
- *   serveur -> "OK" ou "ERREUR message"
- *
- * Grand Chaman : si le document est réservé et qu'il reste <= 60s,
- * on attend la fin de la réservation au lieu de rejeter directement.
- */
 public class ServiceReservation implements Runnable {
 
-    private final Socket socket;
-    private final Mediatheque mediatheque;
+    private Socket socket;
+    private Mediatheque mediatheque;
 
     public ServiceReservation(Socket socket, Mediatheque mediatheque) {
         this.socket = socket;
         this.mediatheque = mediatheque;
     }
 
-    @Override
     public void run() {
-        try (
-            BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter   out  = new PrintWriter(socket.getOutputStream(), true)
-        ) {
+        try {
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
             String ligne = in.readLine();
-            if (ligne == null) return;
+            String[] tab = ligne.split(" ");
 
-            String[] parts = ligne.trim().split(" ");
-            if (parts.length < 2) {
-                out.println("ERREUR Syntaxe : numAbonne idDoc");
+            if (tab.length < 2) {
+                out.println("ERREUR format incorrect, envoyer : numAbonne idDoc");
+                socket.close();
                 return;
             }
 
-            int numAbonne;
-            try {
-                numAbonne = Integer.parseInt(parts[0]);
-            } catch (NumberFormatException e) {
-                out.println("ERREUR Numero d'abonne invalide.");
-                return;
-            }
-            String idDoc = parts[1];
+            int numAbonne = Integer.parseInt(tab[0]);
+            String idDoc = tab[1];
 
             Abonne ab = mediatheque.getAbonne(numAbonne);
             if (ab == null) {
-                out.println("ERREUR Abonne #" + numAbonne + " inconnu.");
+                out.println("ERREUR abonne " + numAbonne + " introuvable");
+                socket.close();
                 return;
             }
 
-            DocumentAbstrait doc = mediatheque.getDocument(idDoc);
+            Document doc = mediatheque.getDocument(idDoc);
             if (doc == null) {
-                out.println("ERREUR Document \"" + idDoc + "\" inconnu.");
+                out.println("ERREUR document " + idDoc + " introuvable");
+                socket.close();
                 return;
             }
 
-            // --- Grand Chaman ---
-            doc.verifierExpiration();
-            if (doc.getEtat() == EtatDocument.RESERVE) {
-                long restantes = doc.secondesRestantes();
-                if (restantes > 0 && restantes <= 60) {
-                    // On fait patienter le client avec musique céleste
-                    out.println("ATTENTE Le document est reserve encore " + restantes
-                            + "s. Veuillez patienter (musique celeste en cours)...");
-                    try {
-                        Thread.sleep(restantes * 1000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                    }
-                    // Re-vérifier après l'attente
-                    doc.verifierExpiration();
+            // Grand chaman : si reserve et moins de 60s restantes, on attend
+            long restantes = 0;
+            if (doc instanceof DVD) {
+                restantes = ((DVD) doc).getSecondesRestantes();
+            } else if (doc instanceof Livre) {
+                restantes = ((Livre) doc).getSecondesRestantes();
+            }
+
+            if (restantes > 0 && restantes <= 60) {
+                out.println("ATTENTE Le document est reserve encore " + restantes + "s, patientez...");
+                try {
+                    Thread.sleep(restantes * 1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             }
-            // --- fin Grand Chaman ---
 
             try {
                 doc.reservation(ab);
-                out.println("OK Document \"" + doc.getTitre()
-                        + "\" reserve. Vous avez 2h pour venir l'emprunter.");
+                out.println("OK reservation effectuee pour " + doc.idDoc() + ", vous avez 2h pour venir l'emprunter");
             } catch (ReservationException e) {
                 out.println("ERREUR " + e.getMessage());
             }
 
+            socket.close();
+
         } catch (IOException e) {
-            System.err.println("[ServiceReservation] Erreur IO : " + e.getMessage());
-        } finally {
-            try { socket.close(); } catch (IOException ignored) {}
+            e.printStackTrace();
         }
     }
 }

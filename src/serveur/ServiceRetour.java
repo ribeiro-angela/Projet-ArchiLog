@@ -1,64 +1,65 @@
 package serveur;
 
-import metier.DocumentAbstrait;
-import metier.Mediatheque;
 import exceptions.RetourException;
+import metier.DVD;
+import metier.Document;
+import metier.Livre;
+import metier.Mediatheque;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 
-/**
- * Service de retour (port 2002).
- * Protocole :
- *   client -> "idDoc" (pas besoin de numAbonne)
- *   client -> "idDoc DEGRADE" (Geronimo : signalement de dégradation)
- *   serveur -> "OK" ou "ERREUR message"
- */
 public class ServiceRetour implements Runnable {
 
-    private final Socket socket;
-    private final Mediatheque mediatheque;
+    private Socket socket;
+    private Mediatheque mediatheque;
 
     public ServiceRetour(Socket socket, Mediatheque mediatheque) {
         this.socket = socket;
         this.mediatheque = mediatheque;
     }
 
-    @Override
     public void run() {
-        try (
-            BufferedReader in  = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            PrintWriter   out  = new PrintWriter(socket.getOutputStream(), true)
-        ) {
+        try {
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+
             String ligne = in.readLine();
-            if (ligne == null) return;
+            String[] tab = ligne.split(" ");
 
-            String[] parts = ligne.trim().split(" ");
-            String idDoc = parts[0];
-            boolean degrade = parts.length >= 2 && parts[1].equalsIgnoreCase("DEGRADE");
+            String idDoc = tab[0];
+            boolean degrade = tab.length >= 2 && tab[1].equals("DEGRADE");
 
-            DocumentAbstrait doc = mediatheque.getDocument(idDoc);
+            Document doc = mediatheque.getDocument(idDoc);
             if (doc == null) {
-                out.println("ERREUR Document \"" + idDoc + "\" inconnu.");
+                out.println("ERREUR document " + idDoc + " introuvable");
+                socket.close();
                 return;
             }
 
             try {
                 if (degrade) {
-                    doc.retourDegrade();
-                    out.println("OK Document rendu. Degradation enregistree (abonne banni 1 mois).");
+                    if (doc instanceof DVD) {
+                        ((DVD) doc).retourDegrade();
+                    } else if (doc instanceof Livre) {
+                        ((Livre) doc).retourDegrade();
+                    }
+                    out.println("OK retour avec degradation enregistre");
                 } else {
                     doc.retour();
-                    out.println("OK Document \"" + doc.getTitre() + "\" rendu. Merci !");
+                    out.println("OK retour effectue");
                 }
             } catch (RetourException e) {
                 out.println("ERREUR " + e.getMessage());
             }
 
+            socket.close();
+
         } catch (IOException e) {
-            System.err.println("[ServiceRetour] Erreur IO : " + e.getMessage());
-        } finally {
-            try { socket.close(); } catch (IOException ignored) {}
+            e.printStackTrace();
         }
     }
 }

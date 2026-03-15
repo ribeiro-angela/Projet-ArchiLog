@@ -1,7 +1,7 @@
 package exceptions;
 
 public class EmpruntException extends Exception {
-    public EmpruntException(String message) {
-        super(message);
+    public EmpruntException(String msg) {
+        super(msg);
     }
 }

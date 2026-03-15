@@ -4,11 +4,12 @@ import java.time.LocalDate;
 import java.time.Period;
 
 public class Abonne {
-    private final int numero;
-    private final String nom;
-    private final LocalDate dateNaissance;
-    // Geronimo : date de fin de bannissement (null = pas banni)
-    private LocalDate finBannissement;
+
+    private int numero;
+    private String nom;
+    private LocalDate dateNaissance;
+    private boolean banni = false;
+    private LocalDate finBan;
 
     public Abonne(int numero, String nom, LocalDate dateNaissance) {
         this.numero = numero;
@@ -16,33 +17,36 @@ public class Abonne {
         this.dateNaissance = dateNaissance;
     }
 
-    public int getNumero() { return numero; }
-    public String getNom() { return nom; }
-    public LocalDate getDateNaissance() { return dateNaissance; }
+    public int getNumero() {
+        return numero;
+    }
+
+    public String getNom() {
+        return nom;
+    }
 
     public int getAge() {
         return Period.between(dateNaissance, LocalDate.now()).getYears();
     }
 
-    // Geronimo
     public boolean estBanni() {
-        if (finBannissement == null) return false;
-        if (LocalDate.now().isAfter(finBannissement)) {
-            finBannissement = null;
-            return false;
+        if (banni && LocalDate.now().isAfter(finBan)) {
+            banni = false;
         }
-        return true;
+        return banni;
     }
 
     public void bannir() {
-        this.finBannissement = LocalDate.now().plusMonths(1);
-        System.out.println("[GERONIMO] " + nom + " banni jusqu'au " + finBannissement);
+        banni = true;
+        finBan = LocalDate.now().plusMonths(1);
+        System.out.println(nom + " est banni jusqu'au " + finBan);
     }
 
-    public LocalDate getFinBannissement() { return finBannissement; }
+    public LocalDate getFinBan() {
+        return finBan;
+    }
 
-    @Override
     public String toString() {
-        return "Abonne#" + numero + "(" + nom + ")";
+        return numero + " - " + nom;
     }
 }

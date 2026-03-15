@@ -1,7 +1,7 @@
 package metier;
 
-import exceptions.ReservationException;
 import exceptions.EmpruntException;
+import exceptions.ReservationException;
 import exceptions.RetourException;
 
 public interface Document {

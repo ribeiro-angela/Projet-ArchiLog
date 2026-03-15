@@ -1,38 +1,38 @@
 package client;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.Scanner;
 
-/**
- * Client de retour (port 2002).
- * Usage : java client.ClientRetour [host] [port]
- * Par défaut : localhost 2002
- *
- * Geronimo : l'utilisateur peut signaler une dégradation en tapant "DEGRADE" après l'id.
- */
 public class ClientRetour {
 
     public static void main(String[] args) throws IOException {
-        String host = args.length > 0 ? args[0] : "localhost";
-        int    port = args.length > 1 ? Integer.parseInt(args[1]) : 2002;
+        String host = "localhost";
+        int port = 2002;
+
+        if (args.length >= 1) port = Integer.parseInt(args[0]);
+        if (args.length >= 2) host = args[1];
 
         Scanner sc = new Scanner(System.in);
+        System.out.print("Id du document a rendre : ");
+        String idDoc = sc.nextLine();
+        System.out.print("Document degrade ? (o/n) : ");
+        String rep = sc.nextLine();
 
-        System.out.print("Identifiant du document a rendre : ");
-        String idDoc = sc.nextLine().trim();
+        Socket socket = new Socket(host, port);
+        PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
+        BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        System.out.print("Le document est-il degrade ? (o/n) : ");
-        String rep = sc.nextLine().trim().toLowerCase();
-        boolean degrade = rep.equals("o") || rep.equals("oui");
-
-        try (
-            Socket        socket = new Socket(host, port);
-            PrintWriter   out    = new PrintWriter(socket.getOutputStream(), true);
-            BufferedReader in    = new BufferedReader(new InputStreamReader(socket.getInputStream()))
-        ) {
-            out.println(degrade ? idDoc + " DEGRADE" : idDoc);
-            System.out.println("[Serveur] " + in.readLine());
+        if (rep.equals("o")) {
+            out.println(idDoc + " DEGRADE");
+        } else {
+            out.println(idDoc);
         }
+
+        System.out.println("[Serveur] " + in.readLine());
+        socket.close();
     }
 }
