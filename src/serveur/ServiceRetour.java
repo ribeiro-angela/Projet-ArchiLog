@@ -1,8 +1,8 @@
 package serveur;
 
 import exceptions.RetourException;
-import metier.DVD;
 import metier.Document;
+import metier.DVD;
 import metier.Livre;
 import metier.Mediatheque;
 
@@ -42,16 +42,24 @@ public class ServiceRetour implements Runnable {
 
             try {
                 if (degrade) {
+                    // retour avec degradation -> bannissement (certification geronimo)
                     if (doc instanceof DVD) {
                         ((DVD) doc).retourDegrade();
                     } else if (doc instanceof Livre) {
                         ((Livre) doc).retourDegrade();
                     }
-                    out.println("OK retour avec degradation enregistre");
+                    out.println("OK retour enregistre (document degrade, abonne banni 1 mois)");
                 } else {
                     doc.retour();
-                    out.println("OK retour effectue");
+                    out.println("OK retour enregistre");
                 }
+
+                // certification sitting bull : on previent les gens en liste d'attente
+                if (mediatheque.yaDesGensQuiAttendent(idDoc)) {
+                    mediatheque.notifierAttente(idDoc);
+                    out.println("INFO des abonnes en attente ont ete notifies par email");
+                }
+
             } catch (RetourException e) {
                 out.println("ERREUR " + e.getMessage());
             }

@@ -22,16 +22,23 @@ public class ClientReservation {
         System.out.print("Id du document a reserver : ");
         String idDoc = sc.nextLine();
 
+        System.out.print("Votre email (laisser vide si pas d'alerte) : ");
+        String email = sc.nextLine().trim();
+
         Socket socket = new Socket(host, port);
         PrintWriter out = new PrintWriter(socket.getOutputStream(), true);
         BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-        out.println(numAbonne + " " + idDoc);
+        String requete = numAbonne + " " + idDoc;
+        if (!email.isEmpty()) {
+            requete = requete + " " + email;
+        }
+        out.println(requete);
 
+        // on lit toutes les repnses du server jusqua la fin
         String reponse;
         while ((reponse = in.readLine()) != null) {
             System.out.println("[Serveur] " + reponse);
-            if (reponse.startsWith("OK") || reponse.startsWith("ERREUR")) break;
         }
 
         socket.close();
